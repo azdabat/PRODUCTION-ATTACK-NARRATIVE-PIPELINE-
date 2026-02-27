@@ -15,7 +15,24 @@ All production detection must begin from **Minimum Truth**:
 
 > The single event that must occur for a specific attack behavior to exist.
 
-Everything else is reinforcement, scoring, or narrative stitching.
+If the minimum truth does not exist, the attack does not exist.
+
+Everything else is:
+
+- Reinforcement  
+- Confidence weighting  
+- Narrative stitching  
+- Incident shaping  
+
+But never truth.
+
+This framework exists to prevent:
+
+- Ghost chains  
+- Brittle joins  
+- Monolithic kill-chain queries  
+- Artificial correlation  
+- Narrative hallucination  
 
 We explicitly separate:
 
@@ -23,57 +40,149 @@ We explicitly separate:
 - Alert vs Incident  
 - Sensor vs Narrative  
 - Substrate vs Story  
+- Truth vs Reinforcement  
 
-This prevents ghost chains, brittle joins, and speculative attack narratives.
+If those boundaries collapse, detection collapses.
 
 ---
 
-# 2. THREE-LAYER PRODUCTION MODEL
+# 2. THE THREE-LAYER PRODUCTION MODEL
+
+This model exists because enterprise telemetry is imperfect.
+
+Attacks are non-linear.  
+Telemetry is delayed.  
+Noise is constant.  
+Correlation windows drift.
+
+So we separate detection into **three independent but cooperative layers**.
 
 ---
 
 # LAYER 1 — SENSORS (ATOMIC TRUTHS)
 
-Sensors are **always-on detections**, each anchored to a single minimum truth for a specific stage or surface.
+Sensors are **always-on truth detectors**.
 
-They do NOT attempt to build the entire attack chain.
+They are not kill-chain builders.  
+They are not story tellers.  
+They are not intelligence reports.
 
-Each sensor represents one clear truth surface.
+They are simple, clear, and bounded.
 
-## 2.1 Sensor Categories (Endpoint-Centric Example)
+Each sensor:
 
-### Execution
-- Suspicious script host execution (PowerShell, wscript, mshta)
-- LOLBin invoked with high-risk primitive
+- Anchors to one truth surface
+- Lives in one telemetry domain
+- Has its own noise model
+- Can stand alone
 
-### Ingress / Tool Transfer
-- Suspicious download
-- File write to user-writable path with executable intent
-
-### Persistence
-Each is separate truth surface:
-- Run key write
-- TaskCache modification
-- Service ImagePath write
-
-### Privilege Escalation
-- Token manipulation
-- UAC bypass truth
-- Suspicious privileged handle access (if signal exists)
-
-### Lateral Movement
-Separate cousins:
-- Remote service execution
-- WMI remote execution
-- WinRM execution
-
-### Command & Control
-- Outbound connection from abnormal process
-- Suspicious protocol or rare infrastructure pattern
+If a sensor needs five joins across three tables to prove truth, the truth anchor is wrong.
 
 ---
 
-## 2.2 Sensor Output Requirements
+## 2.1 What a Sensor Really Is
+
+A sensor is a behavioural proof point.
+
+Example:
+
+- `RegistryValueSet` under TaskCache → persistence substrate exists.
+- `services.exe` spawning uncommon child → service execution surface triggered.
+- PowerShell with encoded runtime primitive → execution intent exists.
+- Outbound connection from non-browser to rare domain → C2 surface exists.
+
+Each of those is self-contained truth.
+
+They may be noisy alone — but they are real.
+
+---
+
+## 2.2 Sensor Categories (Endpoint-Centric Model)
+
+### Execution
+Execution sensors answer:
+> “Did something actually run that indicates attacker intent?”
+
+Examples:
+- Script host + encoded runtime logic
+- LOLBin invoked with suspicious command primitives
+- Abnormal parent-child lineage divergence
+
+Execution truth is immediate.  
+It does not require network or persistence to be valid.
+
+---
+
+### Ingress / Tool Transfer
+Ingress sensors answer:
+> “Did tooling enter the environment in executable form?”
+
+Examples:
+- File written to user-writable path with execution extension
+- Download → immediate execution chain
+- Rare binary drop from uncommon parent
+
+Ingress does not require persistence to be malicious.
+
+---
+
+### Persistence
+Persistence sensors answer:
+> “Has an attacker modified state to survive reboot or logon?”
+
+Each surface is separate truth:
+
+- Run key write
+- TaskCache artifact
+- Service ImagePath modification
+
+These are distinct ecosystems.
+
+Never collapse them into one “Persistence Mega Rule.”
+
+---
+
+### Privilege Escalation
+Privilege escalation sensors prove:
+> “Was elevated capability materially obtained or manipulated?”
+
+Examples:
+- Token manipulation truth
+- UAC bypass truth
+- Suspicious handle access on protected processes
+
+PrivEsc truth is rare but high impact.
+
+---
+
+### Lateral Movement
+Each mechanism is a cousin:
+
+- SMB service execution
+- WMI remote execution
+- WinRM execution
+
+Same attacker goal.  
+Different noise domains.  
+Separate sensors.
+
+---
+
+### Command & Control
+C2 sensors prove:
+> “Did outbound communication occur in a way that departs from normal execution surfaces?”
+
+Examples:
+- Outbound from non-browser process
+- Rare domain from signed system binary
+- Suspicious protocol pattern
+
+C2 is not defined by rarity alone.  
+It is defined by **process context + outbound behavior.**
+
+---
+
+## 2.3 Sensor Output Requirements (Non-Negotiable)
 
 Each sensor must output:
 
@@ -87,89 +196,140 @@ Each sensor must output:
 - `TimeGenerated`
 - Clear `HunterDirective`
 
-Sensors must be independently deployable, suppressible, and tunable.
+If the rule does not produce pivot guidance, it is not production-ready.
+
+Sensors must be:
+
+- Independently deployable
+- Independently suppressible
+- Independently tunable
+- Independent from correlation success
 
 ---
 
 # LAYER 2 — CORRELATION (NARRATIVE STITCHING)
 
-We do NOT correlate everything inside the detection rule.
+Correlation does not create truth.
 
-Narrative stitching happens at the **incident layer**.
+Correlation assembles truths.
 
-## 3.1 Correlation Inputs
+This layer exists because attackers operate across stages — but detection should not collapse into monolithic dependency.
 
-Correlation uses:
+We do NOT correlate everything inside a detection rule.
 
-- Entity Mapping (Account, Host, IP, FileHash, AppId)
-- Time windows appropriate to tactic
-- Grouping keys
-- Stage classification
+We correlate at the **incident layer**.
 
 ---
 
-## 3.2 Time Window Guidance
+## 3.1 What Correlation Is Allowed To Do
 
-Execution → C2:  
+Correlation may:
+
+- Group truths by entity
+- Count stage diversity
+- Shape response priority
+- Extend investigation windows
+
+Correlation may NOT:
+
+- Manufacture missing evidence
+- Require all stages to occur
+- Break detection if one truth is delayed
+- Assume linear kill chains
+
+---
+
+## 3.2 Time Window Doctrine
+
+Attack stages have different temporal realities.
+
+Execution → C2  
 Minutes to hours
 
-Persistence → Execution:  
+Persistence → Execution  
 Hours to days
 
-Lateral Movement burst:  
-Minutes to hours
+Lateral burst  
+Minutes
 
-Persistence hold-open window:  
+Persistence hold-open  
 Up to 72 hours
 
-Timing mismatches must not break detection.
+Correlation windows must reflect attacker behavior — not analyst convenience.
+
+If correlation fails due to strict windows, the window is wrong.
 
 ---
 
-## 3.3 Grouping Keys
+## 3.3 Grouping Keys (Operational Reality)
 
-- Same `DeviceId` + same `Account`
-- Same `SourceIP` → multiple `TargetHosts`
-- Same `SHA256` seen across hosts (burst/radius)
+Narrative grouping may use:
+
+- Same `DeviceId` + `Account`
+- Same `SourceIP` across hosts
+- Same `SHA256` across devices
+- Same AppId (identity domain)
+
+Grouping is entity-driven.
+
+Never correlate purely on time proximity without entity alignment.
 
 ---
 
 ## 3.4 Sentinel Implementation Options
 
-- Incident grouping settings + entity mapping
-OR
-- Dedicated correlation analytics rule:
-  - “2+ truths across stages” within defined window
+Two valid production patterns:
 
-Narrative is built from sensor truths — not assumptions.
+### Option A — Native Incident Grouping
+Use Sentinel incident grouping + entity mapping.
+
+### Option B — Dedicated Correlation Rule
+Build a lightweight analytics rule that:
+- Pulls recent sensor alerts
+- Counts stage diversity
+- Computes incident score
+
+Both are acceptable.
+
+What is not acceptable:
+- One mega KQL rule attempting to prove full kill-chain in a single query.
 
 ---
 
 # LAYER 3 — INCIDENT SCORING (WHEN STORY BECOMES REAL)
 
-An incident becomes operationally real when:
+An incident becomes operationally meaningful when:
 
-- Multiple truths converge  
-OR
-- A single high-severity truth fires (e.g., confirmed LSASS access)
+- Multiple distinct truths converge  
+OR  
+- A single high-severity truth fires  
+
+Example high-severity truth:
+- Confirmed LSASS access  
+- Silent TaskCache persistence  
+- Driver load from suspicious path  
+
+Incident scoring is simple by design.
 
 ---
 
-## 4.1 Incident Score Model
+## 4.1 Incident Score Components
 
-Compute incident score from:
+Incident score may include:
 
-- Stage count (distinct truths fired)
-- Maximum severity
-- Burst / radius (cross-host or cross-account)
-- Rarity
+- Stage count (distinct truths)
+- Maximum sensor severity
+- Burst / lateral radius
+- Organizational rarity
 - Privileged account involvement
 
 This prevents:
 
-- Ghost chains
-- Over-correlation
-- Narrative hallucination
+- Ghost chains  
+- Over-correlation  
+- Narrative inflation  
+
+The incident is shaped by truth density, not imagination.
 
 ---
 
@@ -183,29 +343,35 @@ This prevents:
 4. services.exe Uncommon Child After Inbound SMB (Lateral)
 5. Outbound Rare Domain From Non-browser (C2)
 
+Each one stands alone.
+
+Each one is valid independently.
+
 ---
 
 ## Correlation Logic
 
 If:
 - Same `DeviceId`
-- 2+ of {1,2,3,5}
+- 2+ of {Execution, Ingress, Persistence, C2}
 - Within 6 hours
 
-→ Create / raise incident
+→ Create / escalate incident
 
 If:
 - Same `SourceIP`
-- 3+ hosts trigger {4}
+- 3+ hosts trigger Lateral sensor
 - Within 30 minutes
 
-→ Treat as lateral campaign
+→ Lateral campaign incident
 
 If:
-- Persistence truth {3} fires
+- Persistence truth fires
 
-→ Keep incident open for 72 hours
-→ Attach later Execution/C2 truths
+→ Keep incident open for 72 hours  
+→ Attach subsequent execution/C2 truths  
+
+This tolerates non-linear attack order.
 
 ---
 
@@ -214,7 +380,8 @@ If:
 - Sensors remain clean
 - Narrative assembled reliably
 - Timing mismatches tolerated
-- Persistence preceding execution does not break detection
+- Detection does not collapse under latency
+- Attack variance does not break logic
 
 ---
 
@@ -222,41 +389,51 @@ If:
 
 ## 6.1 Stable Joins Only
 
-- Small → small joins (pre-summarized)
-OR
-- Avoid joins using initiating process fields
+- Small → small joins
+- Pre-summarized prevalence joins
+- Prefer initiating process fields
 
-No blind large joins.
+Never join raw telemetry tables blindly.
 
 ---
 
 ## 6.2 Telemetry Gap Tolerance
 
-If one sensor misses, correlation still builds story.
+Production detection must survive:
 
-Detection does not collapse due to single failure.
+- Missed events
+- Endpoint offline gaps
+- Connector delays
+- Partial ingestion
+
+If detection requires perfect telemetry to work, it will fail.
 
 ---
 
 ## 6.3 Noise Containment
 
-Each sensor:
+Each sensor must have:
 
-- Has independent suppression model
-- Does not rely on global brittle allowlists
-- Uses scoring gates where appropriate
+- Its own suppression model
+- Its own prevalence weighting
+- Its own confidence threshold
+
+Never rely on global allowlists to fix bad truth anchors.
 
 ---
 
 ## 6.4 Analyst-Ready Output
 
-Each sensor must include:
+Sensors must tell analysts:
 
-- Clear pivot guidance
-- Clear next investigative step
-- Entity mapping for expansion
+- Why this fired (truth)
+- What reinforces it (evidence)
+- What to pivot to next
+- When to escalate
 
-Correlation layer provides the story.
+Correlation layer provides story context.
+
+Sensor provides action.
 
 ---
 
@@ -264,79 +441,88 @@ Correlation layer provides the story.
 
 To implement at scale:
 
-### Build
-
-1. Sensors watchlist/table:
+1. Maintain a Sensors Table:
    - RuleId
    - Stage
-   - DefaultWindow
+   - Default correlation window
    - Weight
 
-2. Correlation analytics rule:
-   - Pulls last X hours of alerts
-   - Computes incident score
-   - Groups by entity type
+2. Maintain a Correlation Rule:
+   - Pull recent sensor alerts
+   - Compute stage diversity
+   - Apply simple incident scoring
 
-3. Grouping rules:
+3. Configure Grouping:
    - Host
    - User
    - IP
    - Hash
 
-4. Playbooks:
-   - Whois enrichment
-   - Device risk context
+4. Attach Playbooks:
+   - WHOIS enrichment
+   - Device risk
    - Sign-in context
-   - Auto-attach intelligence
+   - Threat intel attachment
+
+Sensors detect.  
+Correlation narrates.  
+Playbooks accelerate.
 
 ---
 
 # 8. CRITICAL ENGINEERING CONSIDERATIONS
 
-Detection must explicitly consider:
+Production detection must explicitly consider:
 
 - Correlation latency
-- Double counting incidents
-- Ingestion failure
-- Schema drift
+- Duplicate incident suppression
+- Double counting same truth
+- Ingestion drift
+- Schema evolution
 - Noise gates
-- Production refactoring
 - SOC workflow impact
-- Duplicate suppression
+
+Engineering is not just logic.  
+It is operational survivability.
 
 ---
 
-# 9. ENGINEERING SEPARATIONS (MANDATORY)
+# 9. MANDATORY SEPARATIONS
 
-Always separate:
+Never collapse:
 
 - Primitive vs Composite
 - Alert vs Narrative
-- Substrate vs Incident
-- Sensor vs Story
-- Detection vs Workflow
+- Sensor vs Incident
 - Truth vs Reinforcement
+- Detection vs Workflow
 
-Never collapse all layers into one monolithic rule.
+When layers merge, brittleness begins.
 
 ---
 
-# 10. DESIGN DOCTRINE SUMMARY
+# 10. FINAL DOCTRINE
 
-Detection begins at:
+Detection begins with:
 
-First principles → Minimum truth → Atomic sensor.
+First Principles → Minimum Truth → Atomic Sensor
 
-Narrative emerges from:
+Confidence emerges through:
 
-Convergence → Entity stitching → Incident scoring.
+Reinforcement → Convergence → Scoring
+
+Narrative emerges through:
+
+Entity stitching → Stage diversity → Incident shaping
 
 Production maturity requires:
 
 Latency tolerance  
 Noise containment  
-Operational clarity  
 Stable joins  
-SOC-aligned workflow  
+Clear analyst directives  
+Strict layer separation  
 
 This is the Production Attack Narrative Pipeline.
+
+Operating model.
