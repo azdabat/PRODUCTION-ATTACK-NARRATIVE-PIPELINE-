@@ -525,4 +525,63 @@ Strict layer separation
 
 This is the Production Attack Narrative Pipeline.
 
+flowchart TD
+  %% ============================================================
+  %% Production Attack Narrative Pipeline (Minimum Truth → Narrative)
+  %% Author: Ala Dabat
+  %% Model: Sensors (Truth) → Correlation (Entities) → Scoring → Workflow
+  %% ============================================================
+
+  subgraph L1["LAYER 1 — SENSORS (Atomic Minimum Truths)"]
+    S1["Sensor A: Execution Truth<br/>e.g., PowerShell/LOLBIN high-risk primitive<br/><b>Outputs:</b> DeviceId, Account, Process, SHA, RuleId, Stage, RiskScore, Time, HunterDirective"]
+    S2["Sensor B: Ingress / Tool Transfer Truth<br/>e.g., writable-path drop with exec intent<br/><b>Outputs:</b> DeviceId, Account, File, SHA, RuleId, Stage, RiskScore, Time, HunterDirective"]
+    S3["Sensor C: Persistence Truth<br/>e.g., RunKey/TaskCache/Service ImagePath write<br/><b>Outputs:</b> DeviceId, Account, Key/Value, WriterProc, RuleId, Stage, RiskScore, Time, HunterDirective"]
+    S4["Sensor D: Lateral Truth<br/>e.g., remote service exec / WMI / WinRM (cousins)<br/><b>Outputs:</b> SourceIP, TargetHost(s), Account, Proc, RuleId, Stage, RiskScore, Time, HunterDirective"]
+    S5["Sensor E: C2 Truth<br/>e.g., outbound from abnormal proc / rare infra pattern<br/><b>Outputs:</b> DeviceId, Process, RemoteDomain/IP, RuleId, Stage, RiskScore, Time, HunterDirective"]
+  end
+
+  subgraph BUS["ALERT BUS / LOG PIPELINE"]
+    B1["Sentinel Analytics Alerts<br/>or Custom 'Sensors' Table<br/>(Normalized schema: Stage, RuleId, Entities, RiskScore)"]
+  end
+
+  subgraph L2["LAYER 2 — CORRELATION (Narrative Stitching)"]
+    C0["Entity Mapping (Non-Negotiable)<br/>Host / User / IP / Hash / AppId"]
+    C1["Entity Clustering<br/><b>Group Keys:</b><br/>• DeviceId+Account<br/>• SourceIP→Targets<br/>• SHA burst across hosts"]
+    C2["Time Windows (Tactic-Realistic)<br/>Execution→C2: min→hrs<br/>Persistence→Execution: hrs→days<br/>Lateral burst: min→hrs<br/>Persistence hold-open: up to 72h"]
+    C3["Stage Diversity Check<br/><b>Count distinct Stage</b><br/>(Execution, Ingress, Persistence, Lateral, C2, etc.)"]
+    C4["Dedupe Fingerprint<br/>Prevent double counting:<br/>DeviceId+Account+RuleId(+SHA)+TimeBin<br/>Suppress duplicates inside incident"]
+  end
+
+  subgraph L3["LAYER 3 — INCIDENT SCORING (When Story Becomes Real)"]
+    I1["Incident Score Engine<br/><b>Inputs:</b><br/>• StageCount (distinct)<br/>• MaxSeverity/RiskScore<br/>• Burst/Radius<br/>• Rarity/Prevalence<br/>• Privileged user involvement"]
+    I2["Incident Thresholds<br/>• 1 high-severity truth alone → Incident<br/>• 2+ stages converge → Incident<br/>• Lateral radius threshold → Campaign Incident"]
+    I3["Incident Output<br/>Unified Attack Story (Case/Incident)<br/>Entities + Timeline + Confidence + Next Actions"]
+  end
+
+  subgraph OPS["SOC WORKFLOW (Actionable Operations)"]
+    O1["Triage Queue<br/>Single incident view, not alert spam"]
+    O2["HunterDirectives (Inline)<br/>What fired / why / pivots / scope"]
+    O3["Enrichment Playbooks<br/>WHOIS, TI, device risk, sign-in context, etc."]
+    O4["Response / IR<br/>Contain, isolate, block, hunt for cousins, etc."]
+  end
+
+  %% -----------------------------
+  %% Flow
+  %% -----------------------------
+  S1 --> B1
+  S2 --> B1
+  S3 --> B1
+  S4 --> B1
+  S5 --> B1
+
+  B1 --> C0 --> C1 --> C2 --> C3 --> C4 --> I1 --> I2 --> I3 --> O1 --> O2 --> O3 --> O4
+
+  %% -----------------------------
+  %% Notes (Core Doctrine)
+  %% -----------------------------
+  N1["Key Doctrine:<br/><b>MITRE is classification, not correlation.</b><br/>Narrative is built from: Entities + Stage diversity + Time realism.<br/>Sensors stay clean; story is assembled reliably."]:::note
+  C3 --- N1
+
+  classDef note fill:#111,stroke:#999,color:#fff;
+
 Operating model.
