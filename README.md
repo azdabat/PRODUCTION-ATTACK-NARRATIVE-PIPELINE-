@@ -526,65 +526,6 @@ Strict layer separation
 
 This is the Production Attack Narrative Pipeline.
 
-flowchart TD
-  %% PRODUCTION ATTACK NARRATIVE PIPELINE (Simple / GitHub-ready)
-  %% Author: Ala Dabat
 
-  %% -------------------------
-  %% LAYER 1 — SENSORS (Truth)
-  %% -------------------------
-  subgraph L1["Layer 1 — Sensors (Atomic Minimum Truth)"]
-    A["Sensor A: Execution Truth"]
-    B["Sensor B: Ingress/Tool Transfer Truth"]
-    C["Sensor C: Persistence Truth"]
-    D["Sensor D: Lateral Movement Truth (Cousins)"]
-    E["Sensor E: C2 Truth"]
-  end
-
-  BUS["Alert Bus / Normalized Alerts Table\n(Stage, RuleId, Entities, RiskScore, Time, HunterDirective)"]
-
-  A --> BUS
-  B --> BUS
-  C --> BUS
-  D --> BUS
-  E --> BUS
-
-  %% ------------------------------------
-  %% LAYER 2 — CORRELATION (Stitch Story)
-  %% ------------------------------------
-  subgraph L2["Layer 2 — Correlation (Narrative Stitching)"]
-    EM["Entity Mapping\n(Host, User, IP, Hash, AppId)"]
-    GK["Grouping Keys\nDeviceId+Account\nSourceIP→Targets\nSHA burst across hosts"]
-    TW["Time Windows\nExec→C2: mins–hours\nPersist→Exec: hours–days\nLateral burst: mins–hours\nPersist hold-open: up to 72h"]
-    DD["Duplicate Suppression\nFingerprint: DeviceId+Account+RuleId(+SHA)+TimeBin"]
-  end
-
-  BUS --> EM --> GK --> TW --> DD
-
-  %% -----------------------------------
-  %% LAYER 3 — SCORING (Become Incident)
-  %% -----------------------------------
-  subgraph L3["Layer 3 — Incident Scoring (When Story Becomes Real)"]
-    SCORE["Incident Score\nStageCount + MaxSeverity\n+ Burst/Radius + Rarity\n+ Privileged involvement"]
-    THRESH["Thresholds\n1 high-severity truth OR\n2+ stages converge OR\nlateral radius threshold"]
-    INC["Incident / Case\nAttack Story Timeline + Confidence"]
-  end
-
-  DD --> SCORE --> THRESH --> INC
-
-  %% -------------------------
-  %% SOC WORKFLOW (Action)
-  %% -------------------------
-  subgraph OPS["SOC Workflow"]
-    TRIAGE["Triage (Incident view)"]
-    DIRECT["HunterDirectives\n(Why it fired + pivots)"]
-    ENRICH["Enrichment Playbooks"]
-    RESP["Response / IR"]
-  end
-
-  INC --> TRIAGE --> DIRECT --> ENRICH --> RESP
-
-  NOTE["Rule: MITRE is classification, not correlation.\nCorrelation is entities + time realism + stage diversity."]
-  INC -.-> NOTE
 
 Operating model.
